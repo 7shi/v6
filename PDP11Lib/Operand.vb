@@ -9,7 +9,7 @@
 End Module
 
 Public Class Operand
-    Private type%, reg%
+    Private type%, reg%, offset%
     Public Property Length As UShort
 
     Public Sub New(v%)
@@ -17,6 +17,24 @@ Public Class Operand
         reg = v And 7
         If type >= 6 OrElse ((type = 2 OrElse type = 3) AndAlso reg = 7) Then Length = 2
     End Sub
+
+    Private Sub New(src As Operand, offset%)
+        type = src.type
+        reg = src.reg
+        Length = src.Length
+        Me.offset = offset
+    End Sub
+
+    Public Function Check(dst As Operand) As Operand
+        If type = 0 AndAlso reg = dst.reg Then
+            If dst.reg = 2 OrElse dst.reg = 3 Then
+                Return New Operand(Me, 1)
+            ElseIf dst.reg = 4 OrElse dst.reg = 5 Then
+                Return New Operand(Me, -1)
+            End If
+        End If
+        Return Me
+    End Function
 
     Public ReadOnly Property IsValid As Boolean
         Get
@@ -30,7 +48,7 @@ Public Class Operand
         Dim r = RegNames(reg)
         If reg = 7 Then
             Select Case type
-                Case 0 : Return r + bd.GetReg(reg, CUShort(pc))
+                Case 0 : Return r + bd.GetReg(reg, CUShort(pc + offset + offset))
                 Case 1 : Return "(" + r + ")" + bd.GetValue(reg, size, 0, 0)
                 Case 2 : Return "$" + bd.Enc(bd.ReadUInt16(pc))
                 Case 3 : Return "*$" + bd.EncAddr(bd.ReadUInt16(pc))
@@ -39,7 +57,7 @@ Public Class Operand
             End Select
         Else
             Select Case type
-                Case 0 : Return r + bd.GetReg(reg, CUShort(pc))
+                Case 0 : Return r + bd.GetReg(reg, CUShort(pc + offset + offset))
                 Case 1 : Return "(" + r + ")" + bd.GetValue(reg, size, 0, 0)
                 Case 2 : Return "(" + r + ")+" + bd.GetValue(reg, size, 0, size)
                 Case 3 : Return "*(" + r + ")+" + bd.GetPtr(reg, size, 0, 2)
@@ -69,7 +87,7 @@ Public Class Operand
     Public Overridable Function GetValue(vm As VM) As UShort
         Dim dist = If(type < 6, 0, vm.ReadInt16(vm.GetInc(7, 2)))
         Select Case type
-            Case 0 : Return vm.Regs(reg)
+            Case 0 : Return CUShort(vm.Regs(reg) + offset + offset)
             Case 1 : Return vm.ReadUInt16(vm.Regs(reg))
             Case 2 : Return vm.ReadUInt16(vm.GetInc(reg, 2))
             Case 3 : Return vm.ReadUInt16(vm.ReadUInt16(vm.GetInc(reg, 2)))
@@ -84,7 +102,7 @@ Public Class Operand
     Public Function PeekValue(vm As VM) As UShort
         Dim dist = If(type < 6, 0, If(reg = 7, 2, 0) + vm.ReadInt16(vm.PC))
         Select Case type
-            Case 0 : Return vm.Regs(reg)
+            Case 0 : Return CUShort(vm.Regs(reg) + offset + offset)
             Case 1, 2 : Return vm.ReadUInt16(vm.Regs(reg))
             Case 3 : Return vm.ReadUInt16(vm.ReadUInt16(vm.Regs(reg)))
             Case 4 : Return vm.ReadUInt16(vm.Regs(reg) - 2)
@@ -114,7 +132,7 @@ Public Class Operand
         Dim dist = If(type < 6, 0, vm.ReadInt16(vm.GetInc(7, 2)))
         Dim size = If(reg < 6, 1, 2)
         Select Case type
-            Case 0 : Return CByte(vm.Regs(reg) And &HFF)
+            Case 0 : Return CByte((vm.Regs(reg) + offset) And &HFF)
             Case 1 : Return vm(vm.Regs(reg))
             Case 2 : Return vm(vm.GetInc(reg, size))
             Case 3 : Return vm(vm.ReadUInt16(vm.GetInc(reg, 2)))
@@ -130,7 +148,7 @@ Public Class Operand
         Dim dist = If(type < 6, 0, If(reg = 7, 2, 0) + vm.ReadInt16(vm.PC))
         Dim size = If(reg < 6, 1, 2)
         Select Case type
-            Case 0 : Return CByte(vm.Regs(reg) And &HFF)
+            Case 0 : Return CByte((vm.Regs(reg) + offset) And &HFF)
             Case 1, 2 : Return vm(vm.Regs(reg))
             Case 3 : Return vm(vm.ReadUInt16(vm.Regs(reg)))
             Case 4 : Return vm(vm.Regs(reg) - size)

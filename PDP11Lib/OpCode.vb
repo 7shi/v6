@@ -38,8 +38,8 @@
     End Sub
 
     Private Sub SetSrcDst(mne$, size As UShort)
-        src = Operands((val >> 6) And 63)
         dst = Operands(val And 63)
+        src = Operands((val >> 6) And 63).Check(dst)
         If src.IsValid AndAlso dst.IsValid Then
             disasm = Function(bd, pos)
                          Return mne + " " + src.ToString(bd, pos + 2, size) +
